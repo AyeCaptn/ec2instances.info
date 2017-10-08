@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 from lxml import etree
-import urllib2
+from urllib.request import urlopen
 import re
 import json
 import locale
-
 
 # Following advice from https://stackoverflow.com/a/1779324/216138
 # The locale must be installed in the system, and it must be one where ',' is
@@ -20,7 +19,7 @@ class Instance(object):
         self.base_performance = None
         self.burst_minutes = None
         self.linux_virtualization_types = []
-        self.ebs_only=True
+        self.ebs_only = True
         self.ebs_throughput = 0
         self.ebs_iops = 0
         self.ebs_max_bandwidth = 0
@@ -51,45 +50,47 @@ class Instance(object):
         self.intel_turbo = None
 
     def to_dict(self):
-        d = dict(family=self.family,
-                 instance_type=self.instance_type,
-                 pretty_name=self.pretty_name,
-                 arch=self.arch,
-                 vCPU=self.vCPU,
-                 GPU=self.GPU,
-                 FPGA=self.FPGA,
-                 ECU=self.ECU,
-                 base_performance=self.base_performance,
-                 burst_minutes=self.burst_minutes,
-                 memory=self.memory,
-                 ebs_optimized=self.ebs_optimized,
-                 ebs_throughput=self.ebs_throughput,
-                 ebs_iops=self.ebs_iops,
-                 ebs_max_bandwidth=self.ebs_max_bandwidth,
-                 network_performance=self.network_performance,
-                 enhanced_networking=self.enhanced_networking,
-                 placement_group_support=self.placement_group_support,
-                 pricing=self.pricing,
-                 vpc=self.vpc,
-                 linux_virtualization_types=self.linux_virtualization_types,
-                 generation=self.generation,
-                 vpc_only=self.vpc_only,
-                 ipv6_support=self.ipv6_support,
-                 physical_processor=self.physical_processor,
-                 clock_speed_ghz=self.clock_speed_ghz,
-                 intel_avx=self.intel_avx,
-                 intel_avx2=self.intel_avx2,
-                 intel_turbo=self.intel_turbo)
+        d = dict(
+            family=self.family,
+            instance_type=self.instance_type,
+            pretty_name=self.pretty_name,
+            arch=self.arch,
+            vCPU=self.vCPU,
+            GPU=self.GPU,
+            FPGA=self.FPGA,
+            ECU=self.ECU,
+            base_performance=self.base_performance,
+            burst_minutes=self.burst_minutes,
+            memory=self.memory,
+            ebs_optimized=self.ebs_optimized,
+            ebs_throughput=self.ebs_throughput,
+            ebs_iops=self.ebs_iops,
+            ebs_max_bandwidth=self.ebs_max_bandwidth,
+            network_performance=self.network_performance,
+            enhanced_networking=self.enhanced_networking,
+            placement_group_support=self.placement_group_support,
+            pricing=self.pricing,
+            vpc=self.vpc,
+            linux_virtualization_types=self.linux_virtualization_types,
+            generation=self.generation,
+            vpc_only=self.vpc_only,
+            ipv6_support=self.ipv6_support,
+            physical_processor=self.physical_processor,
+            clock_speed_ghz=self.clock_speed_ghz,
+            intel_avx=self.intel_avx,
+            intel_avx2=self.intel_avx2,
+            intel_turbo=self.intel_turbo)
         if self.ebs_only:
             d['storage'] = None
         else:
-            d['storage'] = dict(ssd=self.ssd,
-                                trim_support=self.trim_support,
-                                nvme_ssd=self.nvme_ssd,
-                                storage_needs_initialization=self.storage_needs_initialization,
-                                includes_swap_partition=self.includes_swap_partition,
-                                devices=self.num_drives,
-                                size=self.drive_size)
+            d['storage'] = dict(
+                ssd=self.ssd,
+                trim_support=self.trim_support,
+                nvme_ssd=self.nvme_ssd,
+                storage_needs_initialization=self.storage_needs_initialization,
+                includes_swap_partition=self.includes_swap_partition,
+                devices=self.num_drives,
+                size=self.drive_size)
         return d
 
     def __repr__(self):
@@ -99,7 +100,8 @@ class Instance(object):
 def parse_prev_generation_instance(tr):
     i = Instance()
     cols = tr.xpath('td')
-    assert len(cols) == 8, "Expected 8 columns in the table, but got %d" % len(cols)
+    assert len(cols) == 8, "Expected 8 columns in the table, but got %d" % len(
+        cols)
     i.family = totext(cols[0])
     i.instance_type = totext(cols[1])
     archs = totext(cols[2])
@@ -108,7 +110,7 @@ def parse_prev_generation_instance(tr):
         i.arch.append('i386')
     if '64-bit' in archs:
         i.arch.append('x86_64')
-    assert i.arch, "No archs detected: %s" % (archs,)
+    assert i.arch, "No archs detected: %s" % (archs, )
     i.vCPU = locale.atoi(totext(cols[3]))
     i.memory = locale.atof(totext(cols[4]))
     i.ebs_optimized = totext(cols[6]).lower() == 'yes'
@@ -122,7 +124,8 @@ def parse_prev_generation_instance(tr):
 def parse_instance(tr, inst2family):
     i = Instance()
     cols = tr.xpath('td')
-    assert len(cols) == 12, "Expected 12 columns in the table, but got %d" % len(cols)
+    assert len(
+        cols) == 12, "Expected 12 columns in the table, but got %d" % len(cols)
     i.instance_type = totext(cols[0])
     # Correct typo on AWS site (temporary fix on 2016-10-11)
     # https://github.com/powdahound/ec2instances.info/issues/199
@@ -137,16 +140,9 @@ def parse_instance(tr, inst2family):
     i.family = inst2family.get(i.instance_type, "Unknown")
     # Some instances support 32-bit arch
     # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-resize.html#resize-limitations
-    supports_32bit = (
-        't2.nano',
-        't2.micro',
-        't2.small',
-        't2.medium',
-        'c3.large',
-        't1.micro',
-        'm1.small',
-        'm1.medium',
-        'c1.medium')
+    supports_32bit = ('t2.nano', 't2.micro', 't2.small', 't2.medium',
+                      'c3.large', 't1.micro', 'm1.small', 'm1.medium',
+                      'c1.medium')
     if i.instance_type in supports_32bit:
         i.arch.append('i386')
     i.vCPU = locale.atoi(totext(cols[1]))
@@ -173,12 +169,12 @@ def feature_support(details, types):
     for r in rows:
         cols = r.xpath('th') or r.xpath('td')
         if totext(cols[4]).lower() == 'yes':
-            family = totext(cols[0]).lower()+"."
+            family = totext(cols[0]).lower() + "."
             for i in types:
                 if i.instance_type.startswith(family):
                     i.placement_group_support = True
         if totext(cols[7]).lower() == 'yes':
-            family = totext(cols[0]).lower()+"."
+            family = totext(cols[0]).lower() + "."
             for i in types:
                 if i.instance_type.startswith(family):
                     i.ipv6_support = True
@@ -204,21 +200,28 @@ def parse_instance_fpgas(tr, by_type):
 
 def scrape_instances():
     inst2family = dict()
-    tree = etree.parse(urllib2.urlopen("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html"),
-                       etree.HTMLParser())
+    tree = etree.parse(
+        urlopen(
+            "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html"
+        ), etree.HTMLParser())
     details = tree.xpath('//div[@class="table-contents"]//table')[0]
     hdrs = details.xpath('tr')[0]
-    if totext(hdrs[0]).lower() == 'instance family' and 'current generation' in totext(hdrs[1]).lower():
+    if totext(hdrs[0]).lower(
+    ) == 'instance family' and 'current generation' in totext(hdrs[1]).lower():
         _rindex_family(inst2family, details)
     details = tree.xpath('//div[@class="table-contents"]//table')[1]
     hdrs = details.xpath('tr')[0]
-    if totext(hdrs[0]).lower() == 'instance family' and 'previous generation' in totext(hdrs[1]).lower():
+    if totext(hdrs[0]).lower(
+    ) == 'instance family' and 'previous generation' in totext(hdrs[1]).lower(
+    ):
         _rindex_family(inst2family, details)
     assert len(inst2family) > 0, "Failed to find instance family info"
     features_details = tree.xpath('//div[@class="table-contents"]//table')[2]
 
     current_gen = []
-    tree = etree.parse(urllib2.urlopen("http://aws.amazon.com/ec2/instance-types/"), etree.HTMLParser())
+    tree = etree.parse(
+        urlopen("http://aws.amazon.com/ec2/instance-types/"),
+        etree.HTMLParser())
     details_tables = tree.xpath('//table[count(tbody/tr[1]/td)=12]')
     for details in details_tables:
         rows = details.xpath('tbody/tr')[1:]
@@ -233,7 +236,9 @@ def scrape_instances():
         for r in t.xpath('tbody/tr')[1:]:
             parse_instance_fpgas(r, by_type)
 
-    tree = etree.parse(urllib2.urlopen("http://aws.amazon.com/ec2/previous-generation/"), etree.HTMLParser())
+    tree = etree.parse(
+        urlopen("http://aws.amazon.com/ec2/previous-generation/"),
+        etree.HTMLParser())
     details = tree.xpath('//table')[8]
     rows = details.xpath('tbody/tr')[1:]
     assert len(rows) > 0, "Didn't find any table rows."
@@ -242,14 +247,16 @@ def scrape_instances():
     all_gen = prev_gen + current_gen
 
     hdrs = features_details.xpath('tr')[0]
-    if totext(hdrs[0]).lower() == '' and 'ipv6 support' in totext(hdrs[7]).lower():
+    if totext(hdrs[0]).lower() == '' and 'ipv6 support' in totext(hdrs[
+            7]).lower():
         feature_support(features_details, all_gen)
 
     return all_gen
 
 
 def tables_with_column(tree, column_text):
-    tables = tree.xpath("//table[.//tr[td//text()[contains(., '{}')]]]".format(column_text))
+    tables = tree.xpath("//table[.//tr[td//text()[contains(., '{}')]]]".format(
+        column_text))
     assert len(tables) > 0, "Found no tables with '{}' column."
     return tables
 
@@ -273,7 +280,7 @@ def transform_size(size):
             return 'xlarge'
         else:
             return str(xs) + 'xlarge'
-    assert size == 'lg', "Unable to parse size: %s" % (size,)
+    assert size == 'lg', "Unable to parse size: %s" % (size, )
     return 'large'
 
 
@@ -283,11 +290,12 @@ def transform_region(reg):
         'eu-frankfurt': 'eu-central-1',
         'apac-sin': 'ap-southeast-1',
         'apac-syd': 'ap-southeast-2',
-        'apac-tokyo': 'ap-northeast-1'}
+        'apac-tokyo': 'ap-northeast-1'
+    }
     if reg in region_map:
         return region_map[reg]
     m = re.search(r'^([^0-9]*)(-(\d))?$', reg)
-    assert m, "Can't parse region: %s" % (reg,)
+    assert m, "Can't parse region: %s" % (reg, )
     base = m.group(1)
     num = m.group(3) or '1'
     return base + "-" + num
@@ -308,7 +316,9 @@ def add_ondemand_pricing(imap, data, platform):
             for i_spec in t_spec['sizes']:
                 i_type = i_spec['size']
                 if i_type not in imap:
-                    print("ERROR: Got ondemand pricing data for unknown instance type: {}".format(i_type))
+                    print(
+                        "ERROR: Got ondemand pricing data for unknown instance type: {}".
+                        format(i_type))
                     continue
                 inst = imap[i_type]
                 inst.pricing.setdefault(region, {})
@@ -316,7 +326,8 @@ def add_ondemand_pricing(imap, data, platform):
 
                 inst.pricing[region].setdefault(platform, {})
                 for col in i_spec['valueColumns']:
-                    inst.pricing[region][platform]['ondemand'] = col['prices']['USD']
+                    inst.pricing[region][platform]['ondemand'] = col['prices'][
+                        'USD']
 
                 # ECU is only available here
                 try:
@@ -332,7 +343,9 @@ def add_reserved_pricing(imap, data, platform):
         for t_spec in region_spec['instanceTypes']:
             i_type = t_spec['type']
             if i_type not in imap:
-                print("ERROR: Got reserved pricing data for unknown instance type: {}".format(i_type))
+                print(
+                    "ERROR: Got reserved pricing data for unknown instance type: {}".
+                    format(i_type))
                 continue
             inst = imap[i_type]
             inst.pricing.setdefault(region, {})
@@ -344,11 +357,22 @@ def add_reserved_pricing(imap, data, platform):
 
             for term in t_spec['terms']:
                 for po in term['purchaseOptions']:
+                    reservedPricing = {}
+
                     for value in po['valueColumns']:
                         if value['name'] == 'effectiveHourly':
-                            termPricing[term['term'] + '.' + po['purchaseOption']] = value['prices']['USD']
+                            reservedPricing['effectiveHourly'] = value[
+                                'prices']['USD']
+                        if value['name'] == 'upfront':
+                            reservedPricing['upfront'] = value['prices']['USD']
+                        if value['name'] == 'monthlyStar':
+                            reservedPricing['monthly'] = value['prices']['USD']
+
+                    termPricing[term['term'] + '.' + po[
+                        'purchaseOption']] = reservedPricing
 
             inst.pricing[region][platform]['reserved'] = termPricing
+
 
 def add_ebs_pricing(imap, data):
     for region_spec in data['config']['regions']:
@@ -358,7 +382,9 @@ def add_ebs_pricing(imap, data):
             for i_spec in t_spec['sizes']:
                 i_type = i_spec['size']
                 if i_type not in imap:
-                    print("ERROR: Got EBS pricing data for unknown instance type: {}".format(i_type))
+                    print(
+                        "ERROR: Got EBS pricing data for unknown instance type: {}".
+                        format(i_type))
                     continue
                 inst = imap[i_type]
                 inst.pricing.setdefault(region, {})
@@ -366,6 +392,7 @@ def add_ebs_pricing(imap, data):
 
                 for col in i_spec['valueColumns']:
                     inst.pricing[region]['ebs'] = col['prices']['USD']
+
 
 def add_pricing_info(instances):
     pricing_modes = ['ri', 'od']
@@ -385,23 +412,29 @@ def add_pricing_info(instances):
 
     by_type = {i.instance_type: i for i in instances}
 
-    for platform in ['linux', 'rhel', 'sles', 'mswin', 'mswinSQL', 'mswinSQLWeb', 'mswinSQLEnterprise']:
+    for platform in [
+            'linux', 'rhel', 'sles', 'mswin', 'mswinSQL', 'mswinSQLWeb',
+            'mswinSQLEnterprise'
+    ]:
         for pricing_mode in pricing_modes:
             # current generation
             if pricing_mode == 'od':
-                pricing_url = 'https://a0.awsstatic.com/pricing/1/deprecated/ec2/%s-od.json' % (platform,)
+                pricing_url = 'https://a0.awsstatic.com/pricing/1/deprecated/ec2/%s-od.json' % (
+                    platform, )
             else:
-                pricing_url = 'http://a0.awsstatic.com/pricing/1/ec2/ri-v2/%s.min.js' % (reserved_name_map[platform],)
+                pricing_url = 'http://a0.awsstatic.com/pricing/1/ec2/ri-v2/%s.min.js' % (
+                    reserved_name_map[platform], )
 
             pricing = fetch_data(pricing_url)
             add_pricing(by_type, pricing, platform, pricing_mode)
 
             # previous generation
             if pricing_mode == 'od':
-                pricing_url = 'http://a0.awsstatic.com/pricing/1/ec2/previous-generation/%s-od.min.js' % (platform,)
+                pricing_url = 'http://a0.awsstatic.com/pricing/1/ec2/previous-generation/%s-od.min.js' % (
+                    platform, )
             else:
                 pricing_url = 'http://a0.awsstatic.com/pricing/1/ec2/previous-generation/ri-v2/%s.min.js' % (
-                reserved_name_map[platform],)
+                    reserved_name_map[platform], )
 
             pricing = fetch_data(pricing_url)
             add_pricing(by_type, pricing, platform, pricing_mode)
@@ -413,13 +446,13 @@ def add_pricing_info(instances):
 
 
 def fetch_data(url):
-    content = urllib2.urlopen(url).read()
+    content = urlopen(url).read().decode('utf-8')
     try:
         pricing = json.loads(content)
     except ValueError:
         # if the data isn't compatible JSON, try to parse as jsonP
-        json_string = re.sub(r"(\w+):", r'"\1":',
-                             content[content.index('callback(') + 9: -2])  # convert into valid json
+        json_string = re.sub(r"(\w+):", r'"\1":', content[content.index(
+            'callback(') + 9:-2])  # convert into valid json
         pricing = json.loads(json_string)
 
     return pricing
@@ -427,30 +460,36 @@ def fetch_data(url):
 
 def add_eni_info(instances):
     eni_url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html"
-    tree = etree.parse(urllib2.urlopen(eni_url), etree.HTMLParser())
+    tree = etree.parse(urlopen(eni_url), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]//table')[0]
     rows = table.xpath('.//tr[./td]')
     by_type = {i.instance_type: i for i in instances}
 
     for r in rows:
-        instance_type = etree.tostring(r[0], method='text').strip()
-        max_enis = locale.atoi(etree.tostring(r[1], method='text'))
-        ip_per_eni = locale.atoi(etree.tostring(r[2], method='text'))
+        instance_type = etree.tostring(
+            r[0], encoding='unicode', method='text').strip()
+        max_enis = locale.atoi(
+            etree.tostring(
+                r[1], encoding='unicode', method='text').strip())
+        ip_per_eni = locale.atoi(
+            etree.tostring(
+                r[2], encoding='unicode', method='text').strip())
         # Correct typo on AWS site (temporary fix on 2017-02-23)
         # https://github.com/powdahound/ec2instances.info/issues/227
         if instance_type == 'i316xlarge':
             instance_type = 'i3.16xlarge'
         if instance_type not in by_type:
-            print "Unknown instance type: " + instance_type
+            print("Unknown instance type: " + instance_type)
             continue
         by_type[instance_type].vpc = {
             'max_enis': max_enis,
-            'ips_per_eni': ip_per_eni}
+            'ips_per_eni': ip_per_eni
+        }
 
 
 def add_ebs_info(instances):
     ebs_url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html"
-    tree = etree.parse(urllib2.urlopen(ebs_url), etree.HTMLParser())
+    tree = etree.parse(urlopen(ebs_url), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]//table')[0]
     rows = table.xpath('tr')
     by_type = {i.instance_type: i for i in instances}
@@ -466,9 +505,10 @@ def add_ebs_info(instances):
         ebs_throughput = locale.atof(totext(cols[3]))
         ebs_iops = locale.atof(totext(cols[4]))
         if instance_type not in by_type:
-            print "Unknown instance type: " + instance_type
+            print("Unknown instance type: " + instance_type)
             continue
-        by_type[instance_type].ebs_optimized_by_default = ebs_optimized_by_default
+        by_type[
+            instance_type].ebs_optimized_by_default = ebs_optimized_by_default
         by_type[instance_type].ebs_throughput = ebs_throughput
         by_type[instance_type].ebs_iops = ebs_iops
         by_type[instance_type].ebs_max_bandwidth = ebs_max_bandwidth
@@ -483,7 +523,7 @@ def add_linux_ami_info(instances):
     """
     checkmark_char = u'\u2713'
     url = "http://aws.amazon.com/amazon-linux-ami/instance-type-matrix/"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(urlopen(url), etree.HTMLParser())
     table = tree.xpath('//div[@class="aws-table"]/table')[0]
     rows = table.xpath('.//tr[./td]')[1:]  # ignore header
 
@@ -536,7 +576,7 @@ def add_instance_storage_details(instances):
     """Add information about instance storage features."""
 
     url = "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(urlopen(url), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]/table')[0]
     rows = table.xpath('.//tr[./td]')
 
@@ -546,10 +586,7 @@ def add_instance_storage_details(instances):
     for r in rows:
         columns = r.xpath('.//td')
 
-        (instance_type,
-         storage_volumes,
-         storage_type,
-         needs_initialization,
+        (instance_type, storage_volumes, storage_type, needs_initialization,
          trim_support) = tuple(totext(i) for i in columns)
 
         if instance_type is None:
@@ -584,12 +621,17 @@ def add_cpu_details(instances):
 
     by_type = {i.instance_type: i for i in instances}
     url = "https://aws.amazon.com/ec2/instance-types/#instance-type-matrix"
-    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+    tree = etree.parse(urlopen(url), etree.HTMLParser())
     tables = tree.xpath('//div[@class="aws-table"]//table')
-    tables = filter(lambda x: x.xpath('.//tr//td')[0].text == 'Instance Type', tables)
-    rows = [r for t in tables for r in t.xpath('.//tr') if not r[0].text == 'Instance Type']
+    tables = filter(lambda x: x.xpath('.//tr//td')[0].text == 'Instance Type',
+                    tables)
+    rows = [
+        r for t in tables for r in t.xpath('.//tr')
+        if not r[0].text == 'Instance Type'
+    ]
     for r in rows:
-        instance_type = etree.tostring(r[0], method='text').strip()
+        instance_type = etree.tostring(
+            r[0], encoding='unicode', method='text').strip()
         if instance_type == 'x1.16large':
             instance_type = 'x1.16xlarge'
         elif instance_type == 'i3.16large':
@@ -597,7 +639,7 @@ def add_cpu_details(instances):
 
         instance = by_type.get(instance_type)
         if not instance:
-            print "Unknown instance type: " + instance_type
+            print("Unknown instance type: " + instance_type)
             continue
         instance.physical_processor = clean_output(totext(r[5]))
         instance.clock_speed_ghz = clean_output(totext(r[6]))
@@ -607,8 +649,10 @@ def add_cpu_details(instances):
 
 
 def add_t2_credits(instances):
-    tree = etree.parse(urllib2.urlopen("http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/t2-instances.html"),
-                       etree.HTMLParser())
+    tree = etree.parse(
+        urlopen(
+            "http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/t2-instances.html"
+        ), etree.HTMLParser())
     table = tree.xpath('//div[@class="table-contents"]//table')[0]
     rows = table.xpath('.//tr[./td]')
     assert len(rows) > 0, "Failed to find T2 CPU credit info"
@@ -635,17 +679,17 @@ def add_pretty_names(instances):
         'cc2': 'Cluster Compute',
         'cr1': 'High Memory Cluster',
         'hs1': 'High Storage',
-        'c1' : 'C1 High-CPU',
+        'c1': 'C1 High-CPU',
         'hi1': 'HI1. High I/O',
-        'm2' : 'M2 High Memory',
-        'm1' : 'M1 General Purpose',
-        'p2' : 'General Purpose GPU',
-        'x1' : 'X1 Extra High-Memory'
-        }
+        'm2': 'M2 High Memory',
+        'm1': 'M1 General Purpose',
+        'p2': 'General Purpose GPU',
+        'x1': 'X1 Extra High-Memory'
+    }
     for i in instances:
         pieces = i.instance_type.split('.')
         family = pieces[0]
-        short  = pieces[1]
+        short = pieces[1]
         prefix = family_names.get(family, family.upper())
         extra = None
         if short.startswith('8x'):
@@ -670,33 +714,34 @@ def add_pretty_names(instances):
 
 def scrape(data_file):
     """Scrape AWS to get instance data"""
-    print "Parsing instance types..."
+    print("Parsing instance types...")
     all_instances = scrape_instances()
-    print "Parsing pricing info..."
+    print("Parsing pricing info...")
     add_pricing_info(all_instances)
-    print "Parsing ENI info..."
+    print("Parsing ENI info...")
     add_eni_info(all_instances)
-    print "Parsing EBS info..."
+    print("Parsing EBS info...")
     add_ebs_info(all_instances)
-    print "Parsing Linux AMI info..."
+    print("Parsing Linux AMI info...")
     add_linux_ami_info(all_instances)
-    print "Parsing VPC-only info..."
+    print("Parsing VPC-only info...")
     add_vpconly_detail(all_instances)
-    print "Parsing local instance storage..."
+    print("Parsing local instance storage...")
     add_instance_storage_details(all_instances)
-    print "Parsing burstable instance credits..."
+    print("Parsing burstable instance credits...")
     add_t2_credits(all_instances)
-    print "Parsing instance names..."
+    print("Parsing instance names...")
     add_pretty_names(all_instances)
-    print "Parsing instance cpu details..."
+    print("Parsing instance cpu details...")
     add_cpu_details(all_instances)
 
     with open(data_file, 'w') as f:
-        json.dump([i.to_dict() for i in all_instances],
-                  f,
-                  indent=2,
-                  sort_keys=True,
-                  separators=(',', ': '))
+        json.dump(
+            [i.to_dict() for i in all_instances],
+            f,
+            indent=2,
+            sort_keys=True,
+            separators=(',', ': '))
 
 
 if __name__ == '__main__':
