@@ -24,6 +24,7 @@ class Instance(object):
         self.ebs_only = True
         self.ebs_optimized = False
         self.ebs_throughput = 0
+        self.ebs_as_nvme = False
         self.ECU = 0
         self.enhanced_networking = None
         self.family = ''
@@ -35,7 +36,6 @@ class Instance(object):
         self.intel_avx = None
         self.intel_avx2 = None
         self.intel_turbo = None
-        self.ipv6_support = False
         self.linux_virtualization_types = []
         self.memory = 0
         self.network_performance = None
@@ -52,10 +52,27 @@ class Instance(object):
         self.vCPU = 0
         self.vpc = None
         self.vpc_only = False
+        self.emr = False
+
+    def get_type_prefix(self):
+        """h1, i3, d2, etc"""
+        return self.instance_type.split(".")[0]
+
+    def get_ipv6_support(self):
+        """Fancy parsing not needed for ipv6 support.
+
+        "IPv6 is supported on all current generation instance types and the
+         C3, R3, and I2 previous generation instance types."
+         - https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html
+
+        FIXME: This should be a @property, but this project is still Python 2. Yikes!
+
+        """
+        ipv4_only_families = ("cg1", "m1", "m3", "c1", "cc2", "g2", "m2", "cr1", "hs1", "t1")
+        return self.get_type_prefix() not in ipv4_only_families
 
     def to_dict(self):
-        d = dict(
-            family=self.family,
+        d = dict(family=self.family,
             instance_type=self.instance_type,
             pretty_name=self.pretty_name,
             arch=self.arch,
@@ -69,6 +86,7 @@ class Instance(object):
             ebs_optimized=self.ebs_optimized,
             ebs_throughput=self.ebs_throughput,
             ebs_iops=self.ebs_iops,
+                 ebs_as_nvme=self.ebs_as_nvme,
             ebs_max_bandwidth=self.ebs_max_bandwidth,
             network_performance=self.network_performance,
             enhanced_networking=self.enhanced_networking,
@@ -78,12 +96,13 @@ class Instance(object):
             linux_virtualization_types=self.linux_virtualization_types,
             generation=self.generation,
             vpc_only=self.vpc_only,
-            ipv6_support=self.ipv6_support,
+                 ipv6_support=self.get_ipv6_support(),
             physical_processor=self.physical_processor,
             clock_speed_ghz=self.clock_speed_ghz,
             intel_avx=self.intel_avx,
             intel_avx2=self.intel_avx2,
-            intel_turbo=self.intel_turbo)
+                 intel_turbo=self.intel_turbo,
+                 emr=self.emr)
         if self.ebs_only:
             d['storage'] = None
         else:
@@ -121,7 +140,7 @@ def parse_prev_generation_instance(tr):
     assert len(cols) == 8, "Expected 8 columns in the table, but got %d" % len(
         cols)
     i.family = totext(cols[0])
-    i.instance_type = totext(cols[1])
+    i.instance_type = totext(cols[1]).strip("*")
     archs = totext(cols[2])
     i.arch = []
     if '32-bit' in archs:
@@ -194,11 +213,6 @@ def feature_support(details, types):
             for i in types:
                 if i.instance_type.startswith(family):
                     i.placement_group_support = True
-        if totext(cols[7]).lower() == 'yes':
-            family = totext(cols[0]).lower() + "."
-            for i in types:
-                if i.instance_type.startswith(family):
-                    i.ipv6_support = True
 
 
 def parse_gpus(tr, by_type):
@@ -264,8 +278,7 @@ def scrape_instances():
     all_gen = prev_gen + current_gen
 
     hdrs = features_details.xpath('tr')[0]
-    if totext(hdrs[0]).lower() == '' and 'ipv6 support' in totext(hdrs[
-            7]).lower():
+    if totext(hdrs[0]).lower() == '' and 'enhanced networking' in totext(hdrs[5]).lower():
         feature_support(features_details, all_gen)
 
     return all_gen
@@ -333,9 +346,7 @@ def add_ondemand_pricing(imap, data, platform):
             for i_spec in t_spec['sizes']:
                 i_type = i_spec['size']
                 if i_type not in imap:
-                    print(
-                        "ERROR: Got ondemand pricing data for unknown instance type: {}".
-                        format(i_type))
+                    print("ERROR: Got ondemand pricing data for unknown instance type {} in region {}".format(i_type, region))
                     continue
                 inst = imap[i_type]
                 inst.pricing.setdefault(region, {})
@@ -360,9 +371,7 @@ def add_reserved_pricing(imap, data, platform):
         for t_spec in region_spec['instanceTypes']:
             i_type = t_spec['type']
             if i_type not in imap:
-                print(
-                    "ERROR: Got reserved pricing data for unknown instance type: {}".
-                    format(i_type))
+                print("ERROR: Got reserved pricing data for unknown instance type {} in region {}".format(i_type, region))
                 continue
             inst = imap[i_type]
             inst.pricing.setdefault(region, {})
@@ -421,7 +430,10 @@ def add_pricing_info(instances):
         'mswin': 'windows-shared',
         'mswinSQL': 'windows-with-sql-server-standard-shared',
         'mswinSQLWeb': 'windows-with-sql-server-web-shared',
-        'mswinSQLEnterprise': 'windows-with-sql-server-enterprise-shared'
+        'mswinSQLEnterprise': 'windows-with-sql-server-enterprise-shared',
+        'linuxSQL': 'linux-with-sql-server-standard-shared',
+        'linuxSQLWeb': 'linux-with-sql-server-web-shared',
+        'linuxSQLEnterprise':' linux-with-sql-server-enterprise-shared'
     }
 
     for i in instances:
@@ -429,10 +441,7 @@ def add_pricing_info(instances):
 
     by_type = {i.instance_type: i for i in instances}
 
-    for platform in [
-            'linux', 'rhel', 'sles', 'mswin', 'mswinSQL', 'mswinSQLWeb',
-            'mswinSQLEnterprise'
-    ]:
+    for platform in ['linux', 'rhel', 'sles', 'mswin', 'mswinSQL', 'mswinSQLWeb', 'mswinSQLEnterprise', 'linuxSQL', 'linuxSQLWeb', 'linuxSQLEnterprise']:
         for pricing_mode in pricing_modes:
             # current generation
             if pricing_mode == 'od':
@@ -532,6 +541,30 @@ def add_ebs_info(instances):
         by_type[instance_type].ebs_max_bandwidth = ebs_max_bandwidth
 
 
+def check_ebs_as_nvme(instances):
+    """Note which instances expose EBS as NVMe devices
+
+    Some of the new instances (like i3.metal and c5d family) will expose EBS
+    volume at /dev/nvmeXn1.
+    https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/nvme-ebs-volumes.html
+    """
+
+    url = 'https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/nvme-ebs-volumes.html'
+    tree = etree.parse(urllib2.urlopen(url), etree.HTMLParser())
+
+    # This should get the p text with instance families
+    p_text = ' '.join(s.strip() for s in tree.xpath(r'//*[@id="main-col-body"]/p[1]/text()'))
+    families = [fam.lower() for fam in re.findall(r'[a-zA-Z]\d[a-z]?', p_text)]
+
+    # This should get all code tags which suppose to contain an instance type
+    instance_types = tree.xpath(r'//*[@id="main-col-body"]/p[1]/code//text()')
+
+    for inst in instances:
+        inst_family = inst.instance_type.partition('.')[0]
+        if inst.instance_type in instance_types or inst_family in families:
+            inst.ebs_as_nvme = True
+
+
 def add_linux_ami_info(instances):
     """Add information about which virtualization options are supported.
 
@@ -553,10 +586,14 @@ def add_linux_ami_info(instances):
         # We only check the primary EBS-backed values here since the 'storage'
         # column will already be able to tell users whether or not the instance
         # they're looking at can use EBS and/or instance-store AMIs.
-        if totext(r[1]) == checkmark_char:
-            supported_types.append('HVM')
-        if totext(r[3]) == checkmark_char:
-            supported_types.append('PV')
+        try:
+            if totext(r[1]) == checkmark_char:
+                supported_types.append('HVM')
+            if totext(r[3]) == checkmark_char:
+                supported_types.append('PV')
+        except Exception as e:
+            # 2018-08-01: handle missing cells on last row in this table...
+            print("Exception while parsing AMI info for {}: {}".format(family_id, e))
 
         # Apply types for this instance family to all matching instances
         for i in instances:
@@ -583,7 +620,7 @@ def add_linux_ami_info(instances):
 def add_vpconly_detail(instances):
     # specific instances can be lanuched in VPC only
     # http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-vpc.html#vpc-only-instance-types
-    vpc_only_families = ('c5', 'c4', 'f1', 'g3', 'h1', 'i3', 'm4', 'm5', 'p2', 'r4', 't2', 'x1')
+    vpc_only_families = ('c5', 'c5d', 'c4', 'f1', 'g3', 'h1', 'i3', 'm4', 'm5', 'm5d', 'p2', 'r4', 't2', 'x1')
     for i in instances:
         for family in vpc_only_families:
             if i.instance_type.startswith(family):
@@ -684,6 +721,7 @@ def add_pretty_names(instances):
         'c3': 'C3 High-CPU',
         'c4': 'C4 High-CPU',
         'c5': 'C5 High-CPU',
+        'c5d': 'C5 High-CPU',
         'cc2': 'Cluster Compute',
         'cg1': 'Cluster GPU',
         'cr1': 'High Memory Cluster',
@@ -695,6 +733,7 @@ def add_pretty_names(instances):
         'm3': 'M3 General Purpose',
         'm4': 'M4 General Purpose',
         'm5': 'M5 General Purpose',
+        'm5d': 'M5 General Purpose',
         'p2': 'General Purpose GPU',
         'r3': 'R3 High-Memory',
         'r4': 'R4 High-Memory',
@@ -726,6 +765,37 @@ def add_pretty_names(instances):
         i.pretty_name = ' '.join([b for b in bits if b])
 
 
+def add_emr_info(instances):
+    url = "https://a0.awsstatic.com/pricing/1/emr/pricing-emr.min.js"
+    pricing = fetch_data(url)
+
+    def extract_prices(data):
+        ret = {}
+        for x in data["regions"]:
+            for inst in x["instanceTypes"]:
+                for size in inst["sizes"]:
+                    if size["size"] not in ret:
+                        ret[size["size"]] = {}
+                    ret[size["size"]][x["region"]] = {
+                        size["valueColumns"][0]["name"]:
+                        size["valueColumns"][0]["prices"]["USD"],
+                        size["valueColumns"][1]["name"]:
+                        size["valueColumns"][1]["prices"]["USD"],
+                        "currencies": data["currencies"],
+                        "rate": data["rate"],
+                    }
+        return ret
+
+    pricing = extract_prices(pricing["config"])
+    for inst in instances:
+        if inst.instance_type in pricing:
+            inst.emr = True
+            for region in inst.pricing:
+                if region in pricing[inst.instance_type]:
+                    inst.pricing[region]["emr"] = pricing[
+                        inst.instance_type][region]
+
+
 def scrape(data_file):
     """Scrape AWS to get instance data"""
     print("Parsing instance types...")
@@ -736,6 +806,8 @@ def scrape(data_file):
     add_eni_info(all_instances)
     print("Parsing EBS info...")
     add_ebs_info(all_instances)
+    print("Adding EBS as NVMe info...")
+    check_ebs_as_nvme(all_instances)
     print("Parsing Linux AMI info...")
     add_linux_ami_info(all_instances)
     print("Parsing VPC-only info...")
@@ -748,6 +820,8 @@ def scrape(data_file):
     add_pretty_names(all_instances)
     print("Parsing instance cpu details...")
     add_cpu_details(all_instances)
+    print("Parsing emr details...")
+    add_emr_info(all_instances)
 
     with open(data_file, 'w') as f:
         json.dump(

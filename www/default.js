@@ -47,6 +47,7 @@ function init_data_table() {
           "architecture",
           "computeunits",
           "ecu-per-vcpu",
+          "emr-support",
           "gpus",
           "fpgas",
           "physical_processor",
@@ -56,20 +57,28 @@ function init_data_table() {
           "intel_turbo",
           "enhanced-networking",
           "maxips",
+          "maxenis",
           "linux-virtualization",
+          "cost-emr",
           "cost-ondemand-rhel",
           "cost-ondemand-sles",
-          "cost-ondemand-mswinSQLWeb",
           "cost-ondemand-mswinSQL",
           "cost-ondemand-mswinSQLEnterprise",
+          "cost-ondemand-mswinSQLWeb",
+          "cost-ondemand-linuxSQL",
+          "cost-ondemand-linuxSQLEnterprise",
+          "cost-ondemand-linuxSQLWeb",
           "cost-reserved-rhel",
           "cost-reserved-sles",
-          "cost-reserved-mswinSQLWeb",
           "cost-reserved-mswinSQL",
           "cost-reserved-mswinSQLEnterprise",
+          "cost-reserved-mswinSQLWeb",
+          "cost-reserved-linuxSQL",
+          "cost-reserved-linuxSQLEnterprise",
+          "cost-reserved-linuxSQLWeb",
           "ebs-throughput",
           "ebs-iops",
-          "ebs-iops",
+          "ebs-as-nvme",
           "ebs-max-bandwidth",
           "cost-ebs-optimized",
           "trim-support",
@@ -257,6 +266,7 @@ function setup_clear() {
   $('.btn-clear').click(function () {
     // Reset app.
     g_settings = JSON.parse(JSON.stringify(g_settings_defaults)); // clone
+    g_data_table.search("");
     clear_row_selections();
     maybe_update_url();
     store.clear();
@@ -364,6 +374,7 @@ function on_data_table_initialized() {
   $('[data-action="datafilter"][data-type="memory"]').val(g_settings['min_memory']);
   $('[data-action="datafilter"][data-type="vcpus"]').val(g_settings['min_vcpus']);
   $('[data-action="datafilter"][data-type="storage"]').val(g_settings['min_storage']);
+  g_data_table.search(g_settings['filter']);
   apply_min_values();
 
   // apply highlight to selected rows
@@ -457,7 +468,7 @@ function load_settings() {
         key = 'reserved_term';
       }
       // store in global settings
-      console.log('loaded from url', key, val);
+      console.log('Loaded setting from URL:', key, '=', val);
       g_settings[key] = val;
     });
   }

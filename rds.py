@@ -7,7 +7,9 @@ import sys
 
 def add_pretty_names(instances):
     family_names = {
-        'r3': 'R3 High-Memory',
+        't2': 'T2 General Purpose',
+        'r3': 'R3 Memory Optimized',
+        'r4': 'R4 Memory Optimized',
         'c3': 'C3 High-CPU',
         'c4': 'C4 High-CPU',
         'm3': 'M3 General Purpose',
@@ -24,9 +26,10 @@ def add_pretty_names(instances):
         }
     for k in instances:
         i = instances[k]
+        # instance type format looks like "db.r4.large"; dropping the "db" prefix
         pieces = i['instance_type'].split('.')
-        family = pieces[0]
-        short  = pieces[1]
+        family = pieces[1]
+        short  = pieces[2]
         prefix = family_names.get(family, family.upper())
         extra = None
         if short.startswith('8x'):
@@ -70,10 +73,12 @@ def scrape(output_file, input_file=None):
         "Asia Pacific (Singapore)": 'ap-southeast-1',
         "Asia Pacific (Sydney)": 'ap-southeast-2',
         "Asia Pacific (Tokyo)": 'ap-northeast-1',
+        "Asia Pacific (Osaka-Local)": 'ap-northeast-3',
         "Canada (Central)": 'ca-central-1',
         "EU (Frankfurt)": 'eu-central-1',
         "EU (Ireland)": 'eu-west-1',
         "EU (London)": 'eu-west-2',
+        "EU (Paris)": 'eu-west-3',
         "South America (Sao Paulo)": 'sa-east-1',
         "US East (N. Virginia)": 'us-east-1',
         "US East (Ohio)": 'us-east-2',
@@ -84,7 +89,7 @@ def scrape(output_file, input_file=None):
     # loop through products, and only fetch available instances for now
     for sku, product in data['products'].iteritems():
 
-        if product['productFamily'] == 'Database Instance':
+        if product.get('productFamily', None) == 'Database Instance':
             # map the region
             try:
                 region = regions[product['attributes']['location']]
@@ -120,9 +125,10 @@ def scrape(output_file, input_file=None):
                 if any(descr in dimension['description'].lower() for descr in ['transfer', 'global', 'storage', 'iops', 'requests', 'multi-az']):
                     continue
 
-                instance = rds_instances[sku]
-                # if instance['instance_type'] == 'db.m3.medium' and instance['region'] == 'eu-west-1' and instance['database_engine'].lower() == 'mysql':
-                #     print instance['region'], dimension
+                instance = rds_instances.get(sku)
+                if not instance:
+                    print("ERROR: Instance type not found for sku={}".format(sku))
+                    continue
 
                 if instance['region'] not in instances[instance['instance_type']]['pricing']:
                     instances[instance['instance_type']]['pricing'][instance['region']] = {}
@@ -143,6 +149,10 @@ def scrape(output_file, input_file=None):
     for sku, offers in data['terms']['Reserved'].iteritems():
         for code, offer in offers.iteritems():
             for key, dimension in offer['priceDimensions'].iteritems():
+
+                # skip multi-az
+                if rds_instances[sku]['deploymentOption'] != 'Single-AZ':
+                    continue
 
                 instance = rds_instances[sku]
                 region = rds_instances[sku]['region']
@@ -176,12 +186,12 @@ def scrape(output_file, input_file=None):
                 if 'reserved' not in prices:
                     continue
                 try:
-                    # TODO: check if the prices are actually for multi-az instances
+                    # no multi-az here
                     reserved_prices = {
-                        'yrTerm3.partialUpfront': (prices['reserved']['yrTerm3.partialUpfront-quantity'] / (365 * 3) / 24 / 2) + prices['reserved']['yrTerm3.partialUpfront-hrs'],
-                        'yrTerm1.partialUpfront': (prices['reserved']['yrTerm1.partialUpfront-quantity'] / 365 / 24 / 2) + prices['reserved']['yrTerm1.partialUpfront-hrs'],
-                        'yrTerm3.allUpfront': (prices['reserved']['yrTerm3.allUpfront-quantity'] / (365 * 3) / 24 / 2) + prices['reserved']['yrTerm3.allUpfront-hrs'],
-                        'yrTerm1.allUpfront': (prices['reserved']['yrTerm1.allUpfront-quantity'] / 365 / 24 / 2) + prices['reserved']['yrTerm1.allUpfront-hrs'],
+                        'yrTerm3.partialUpfront': (prices['reserved']['yrTerm3.partialUpfront-quantity'] / (365 * 3) / 24) + prices['reserved']['yrTerm3.partialUpfront-hrs'],
+                        'yrTerm1.partialUpfront': (prices['reserved']['yrTerm1.partialUpfront-quantity'] / 365 / 24) + prices['reserved']['yrTerm1.partialUpfront-hrs'],
+                        'yrTerm3.allUpfront': (prices['reserved']['yrTerm3.allUpfront-quantity'] / (365 * 3) / 24) + prices['reserved']['yrTerm3.allUpfront-hrs'],
+                        'yrTerm1.allUpfront': (prices['reserved']['yrTerm1.allUpfront-quantity'] / 365 / 24) + prices['reserved']['yrTerm1.allUpfront-hrs'],
                         'yrTerm1.noUpfront': prices['reserved']['yrTerm1.noUpfront-hrs'],
                     }
                     instances[instance_type]['pricing'][region][engine]['reserved'] = reserved_prices

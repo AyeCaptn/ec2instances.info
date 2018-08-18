@@ -5,10 +5,8 @@
 <%inherit file="base.mako" />
 
     <%block name="header">
-    <h1>RDSInstances.info <small>Easy Amazon RDS Instance Comparison</small></h1>
+    <h1>EC2Instances.info <small>Easy Amazon <b>RDS</b> Instance Comparison</small></h1>
     </%block>
-
-    <div class="alert alert-warning">Note: Support for RDS information is a work in progress.</div>
 
     <div class="row" id="menu">
       <div class="col-sm-12">
@@ -33,7 +31,7 @@
             <li><a href="javascript:;" data-region='us-east-2'>US East (Ohio)</a></li>
             <li><a href="javascript:;" data-region='us-west-1'>US West (Northern California)</a></li>
             <li><a href="javascript:;" data-region='us-west-2'>US West (Oregon)</a></li>
-
+            <li><a href="javascript:;" data-region='us-gov-west-1'>AWS GovCloud (US)</a></li>
           </ul>
         </div>
 
@@ -109,7 +107,7 @@
           </th>
           <th class="networkperf">Network Performance</th>
           <th class="arch">Arch</th>
-          % for platform in ['Amazon Aurora', 'MariaDB', 'MySQL', 'Oracle','PostgreSQL', 'SQL Server']:
+          % for platform in ['Aurora PostgreSQL', 'Aurora MySQL', 'MariaDB', 'MySQL', 'Oracle','PostgreSQL', 'SQL Server']:
           <th class="cost-ondemand cost-ondemand-${platform}">${platform} On Demand cost</th>
           <th class="cost-reserved cost-reserved-${platform}">
             <abbr title='Reserved costs are an "effective" hourly rate, calculated by hourly rate + (upfront cost / hours in reserved term).  Actual hourly rates may vary.'>${platform} Reserved cost</abbr>
@@ -157,7 +155,7 @@
             64-bit
             % endif
           </td>
-          % for platform in ['Amazon Aurora', 'MariaDB', 'MySQL', 'Oracle','PostgreSQL', 'SQL Server']:
+          % for platform in ['Aurora PostgreSQL', 'Aurora MySQL', 'MariaDB', 'MySQL', 'Oracle','PostgreSQL', 'SQL Server']:
           <td class="cost-ondemand cost-ondemand-${platform}" data-pricing='${json.dumps({r:p.get(platform, p.get('os',{})).get('ondemand') for r,p in inst['pricing'].iteritems()}) | h}'>
             % if inst['pricing'].get('us-east-1', {}).get(platform, {}).get('ondemand', 'N/A') != "N/A":
               <span sort="${inst['pricing']['us-east-1'][platform]['ondemand']}">
